@@ -6,8 +6,9 @@ from src import config
 
 def test_analyze_returns_expected_shape(analyzer, make_wav):
     res = analyzer.analyze_audio(make_wav(), apply_noise_reduction=False)
-    assert set(res) == {"metadata", "statistics", "events", "suggestions"}
+    assert set(res) == {"metadata", "statistics", "events", "suggestions", "score"}
     assert res["metadata"]["total_frames"] > 0
+    assert 0 <= res["score"]["score"] <= 100
     assert isinstance(res["events"], list)
     assert isinstance(res["suggestions"], list)
 

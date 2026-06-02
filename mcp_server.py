@@ -24,6 +24,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from src import trends
 from src.analyzer import SleepSoundAnalyzer
 
 # 报告保存目录。
@@ -74,6 +75,44 @@ def _build_summary(result: dict) -> str:
         for advice in sug["advice"]:
             lines.append(f"    - {advice}")
 
+    return "\n".join(lines)
+
+
+def _save_one(analyzer, result) -> str:
+    """保存一份报告，文件名带微秒避免批量时秒级冲突。返回路径字符串。"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    report_path = REPORTS_FOLDER / f"report_{timestamp}.json"
+    analyzer.save_report(result, report_path)
+    return str(report_path)
+
+
+def _compact_report(result: dict) -> dict:
+    """批量返回时压缩单份结果：去掉逐事件明细，只留元数据/统计/评分/路径。"""
+    meta = result.get("metadata", {})
+    return {
+        "file": meta.get("file"),
+        "recording_started_at": meta.get("recording_started_at"),
+        "backend": meta.get("backend"),
+        "report_path": result.get("report_path"),
+        "score": result.get("score"),
+        "statistics": result.get("statistics"),
+    }
+
+
+def _build_trend_summary(trend: dict) -> str:
+    """把趋势结果渲染成可直接展示的中文 markdown。"""
+    nights = trend.get("nights", [])
+    lines = ["# 多晚睡眠趋势", "", trend.get("verdict", "")]
+    if nights:
+        lines.append("")
+        lines.append("| 日期 | 睡眠分 | 等级 | 打鼾/h | 磨牙/h | 梦话/h | 发声占比 |")
+        lines.append("|---|---|---|---|---|---|---|")
+        for s in nights:
+            d = (s.get("date") or "")[:16]
+            lines.append(
+                f"| {d} | {s['score']} | {s['label']} | {s['snore_per_hour']} "
+                f"| {s['grind_per_hour']} | {s['talk_per_hour']} | {s['disturb_pct']}% |"
+            )
     return "\n".join(lines)
 
 
@@ -160,6 +199,97 @@ def get_sleep_report(filename: str) -> dict:
         raise FileNotFoundError(f"报告不存在: {filename}")
     with open(report_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+@mcp.tool()
+def analyze_sleep_batch(
+    audio_paths: list[str],
+    apply_noise_reduction: bool = True,
+    save_report: bool = True,
+    backend: str = "hybrid",
+) -> dict:
+    """
+    连续分析一份或多份睡眠录音，给出每晚睡眠分，并对多晚做趋势对比
+    （判断整体变好/变差/持平）。
+
+    Args:
+        audio_paths: 一个或多个音频文件路径。
+        apply_noise_reduction: 是否降噪，默认 True。
+        save_report: 是否把每晚结果保存为 JSON 报告，默认 True。
+        backend: 分类后端，默认 "hybrid"（同 analyze_sleep_audio）。
+
+    Returns:
+        dict:
+            - nights: 各晚摘要（日期、睡眠分、等级、各类每小时次数、发声占比），按日期排序
+            - trend: 趋势分析（overall_direction=improving/worsening/stable、各指标变化、中文 verdict）
+            - reports: 各份压缩结果（统计/评分/报告路径，不含逐事件明细）
+            - summary: 可直接展示的中文 markdown 趋势表
+    """
+    paths = []
+    for p in audio_paths:
+        pp = Path(p).expanduser()
+        if not pp.exists():
+            raise FileNotFoundError(f"音频文件不存在: {p}")
+        paths.append(str(pp))
+
+    with _quiet_stdout():
+        analyzer = _get_analyzer(backend)
+        cb = (lambda r: _save_one(analyzer, r)) if save_report else None
+        batch = analyzer.analyze_batch(
+            paths, apply_noise_reduction=apply_noise_reduction, save_report=cb
+        )
+
+    batch["reports"] = [_compact_report(r) for r in batch["reports"]]
+    batch["summary"] = _build_trend_summary(batch["trend"])
+    return batch
+
+
+@mcp.tool()
+def analyze_sleep_trend(
+    filenames: list[str] | None = None,
+    date_from: str = "",
+    date_to: str = "",
+) -> dict:
+    """
+    对**已保存的历史报告**做多晚趋势分析，无需重新跑音频。
+
+    Args:
+        filenames: 指定要对比的报告文件名列表（report_*.json）。为空则扫描全部报告。
+        date_from: 起始日期（YYYY-MM-DD，含）。仅在未指定 filenames 时按录音日期过滤。
+        date_to: 结束日期（YYYY-MM-DD，含）。
+
+    Returns:
+        dict: nights、trend（含变好/变差结论）、summary（中文 markdown）。
+    """
+    results = []
+    if filenames:
+        for fn in filenames:
+            fp = REPORTS_FOLDER / Path(fn).name
+            if not fp.exists():
+                raise FileNotFoundError(f"报告不存在: {fn}")
+            with open(fp, "r", encoding="utf-8") as f:
+                results.append(json.load(f))
+    else:
+        for fp in REPORTS_FOLDER.glob("*.json"):
+            with open(fp, "r", encoding="utf-8") as f:
+                results.append(json.load(f))
+
+    out = SleepSoundAnalyzer.trend_from_results(results)
+
+    # 按录音日期过滤（仅在未显式指定 filenames 时生效）
+    if not filenames and (date_from or date_to):
+        def _in_range(s):
+            d = (s.get("date") or "")[:10]
+            if date_from and d < date_from:
+                return False
+            if date_to and d > date_to:
+                return False
+            return True
+        nights = [s for s in out["nights"] if _in_range(s)]
+        out = {"nights": nights, "trend": trends.analyze_trend(nights)}
+
+    out["summary"] = _build_trend_summary(out["trend"])
+    return out
 
 
 def main() -> None:

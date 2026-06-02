@@ -3,14 +3,37 @@
 """
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from . import config
+from . import scoring
+from . import trends
 from .preprocessor import AudioPreprocessor
 from .feature_extractor import FeatureExtractor
 from .classifier import SoundClassifier
 
 logger = logging.getLogger(__name__)
+
+# 从文件名里提取录音起始时间，支持如 2026-06-02_03_06_12 / 2026-06-02 03:06:12
+_DATETIME_IN_NAME = re.compile(
+    r"(\d{4})-(\d{2})-(\d{2})[ _T](\d{2})[:_](\d{2})[:_](\d{2})"
+)
+_DATE_IN_NAME = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+
+
+def _parse_recording_time(audio_path):
+    """从文件名推断录音起始时间，返回 ISO 字符串；无法识别返回 None。"""
+    name = Path(audio_path).name
+    m = _DATETIME_IN_NAME.search(name)
+    if m:
+        y, mo, d, h, mi, s = m.groups()
+        return f"{y}-{mo}-{d}T{h}:{mi}:{s}"
+    m = _DATE_IN_NAME.search(name)
+    if m:
+        y, mo, d = m.groups()
+        return f"{y}-{mo}-{d}T00:00:00"
+    return None
 
 
 class SleepSoundAnalyzer:
@@ -41,13 +64,16 @@ class SleepSoundAnalyzer:
         # YAMNet 后端懒加载，避免无谓地拉起 tensorflow
         self._yamnet = None
 
-    def analyze_audio(self, audio_path, apply_noise_reduction=True):
+    def analyze_audio(self, audio_path, apply_noise_reduction=True,
+                      recording_started_at=None):
         """
         分析音频文件
 
         Args:
             audio_path: 音频文件路径
             apply_noise_reduction: 是否应用降噪
+            recording_started_at: 录音起始时间（ISO 字符串）。不传则尝试从文件名
+                解析（如 2026-06-02_03_06_12）。用于多晚趋势的日期排序。
 
         Returns:
             dict: 分析结果
@@ -127,10 +153,13 @@ class SleepSoundAnalyzer:
         # 7. 生成建议
         suggestions = self._generate_suggestions(stats)
 
-        return {
+        result = {
             'metadata': {
                 'file': str(audio_path),
                 'analyzed_at': datetime.now().isoformat(),
+                'recording_started_at': (
+                    recording_started_at or _parse_recording_time(audio_path)
+                ),
                 'total_duration': preprocessed['duration'],
                 'total_frames': len(preprocessed['frames']),
                 'backend': backend  # 实际生效的后端（依赖缺失回退时与 self.backend 不同）
@@ -138,6 +167,51 @@ class SleepSoundAnalyzer:
             'statistics': stats,
             'events': merged_events,
             'suggestions': suggestions
+        }
+        # 8. 单晚评分（可跨晚比较）
+        result['score'] = scoring.compute_score(stats)
+        return result
+
+    def analyze_batch(self, audio_paths, apply_noise_reduction=True,
+                      save_report=None):
+        """
+        连续分析多份录音，并对各晚做趋势对比。
+
+        Args:
+            audio_paths: 音频文件路径列表（一个或多个）。
+            apply_noise_reduction: 是否降噪。
+            save_report: 可选回调 (result) -> report_path，用于逐份保存报告。
+
+        Returns:
+            dict:
+                - nights: 各晚摘要（按日期排序）
+                - trend: 趋势分析（含变好/变差结论）
+                - reports: 各份完整结果（按输入顺序）
+        """
+        results = []
+        summaries = []
+        for path in audio_paths:
+            result = self.analyze_audio(
+                path, apply_noise_reduction=apply_noise_reduction
+            )
+            if save_report is not None:
+                result['report_path'] = save_report(result)
+            results.append(result)
+            summaries.append(scoring.night_summary(result))
+
+        return {
+            'nights': sorted(summaries, key=lambda s: (s.get('date') or '')),
+            'trend': trends.analyze_trend(summaries),
+            'reports': results,
+        }
+
+    @staticmethod
+    def trend_from_results(results):
+        """对一组已有的完整分析结果做趋势分析（供历史报告复用）。"""
+        summaries = [scoring.night_summary(r) for r in results]
+        return {
+            'nights': sorted(summaries, key=lambda s: (s.get('date') or '')),
+            'trend': trends.analyze_trend(summaries),
         }
 
     def _get_yamnet(self):

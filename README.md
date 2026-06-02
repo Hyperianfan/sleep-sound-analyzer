@@ -288,7 +288,6 @@ response = requests.post('http://localhost:5050/api/analyze',
 ## 开发团队
 
 Sleep Sound Analyzer v1.0  
-Powered by Plaud × AI
 
 ## License
 

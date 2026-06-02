@@ -198,9 +198,40 @@ pip install -r requirements.txt
 ```
 
 - Claude Code：放进项目根目录的 `.mcp.json`，或 `claude mcp add` 注册。
-- Claude Desktop：加到 `claude_desktop_config.json` 的 `mcpServers` 字段。
+- Claude Desktop：加到 `claude_desktop_config.json` 的 `mcpServers` 字段（详见下文）。
 
 接好后，直接对 agent 说「帮我分析这段睡眠录音 /path/to/xxx.wav」即可。
+
+#### 在 Claude Desktop 上安装（分步）
+
+1. 先按上文装好项目（clone + venv + `pip install ".[yamnet]"`），并记下项目**绝对路径**（终端 `pwd`）。
+2. 打开配置文件 `claude_desktop_config.json`：
+   - macOS：`~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows：`%APPDATA%\Claude\claude_desktop_config.json`
+   - 或在应用内：**Settings → Developer → Edit Config**
+3. 加入以下内容（把 `/ABS/PATH` 换成第 1 步的真实绝对路径）：
+
+```jsonc
+{
+  "mcpServers": {
+    "sleep-sound-analyzer": {
+      "command": "/ABS/PATH/sleep-sound-analyzer/venv/bin/python",
+      "args": ["/ABS/PATH/sleep-sound-analyzer/mcp_server.py"]
+    }
+  }
+}
+```
+
+> Windows 的 `command` 用 `...\\venv\\Scripts\\python.exe`，路径用双反斜杠 `\\`。
+
+4. **完全退出并重启 Claude Desktop**。在对话的工具列表里看到 `analyze_sleep_audio`、
+   `analyze_sleep_batch`、`analyze_sleep_trend` 即安装成功。
+
+> 提示：
+> - 首次使用 hybrid/yamnet 后端会联网下载约 17MB 的 YAMNet 模型（之后缓存）；
+>   未安装 `[yamnet]` 时自动回退到 `rule`。
+> - Claude Desktop 端**不能上传文件给本地 server**，只能传**本机文件路径**；要分析的
+>   音频需在运行 Claude Desktop 的这台机器上。
 
 > 报告默认写到项目内 `output/reports/`。若本包被装到别处（如 site-packages），
 > 可用环境变量 `SLEEP_REPORTS_DIR` 指定一个可写目录。

@@ -40,3 +40,7 @@ output/reports/*.json
 .DS_Store
 .idea/
 .vscode/
+
+# 临时对比脚本
+compare_backends.py
+output/reports/compare_*.json

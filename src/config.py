@@ -32,3 +32,35 @@ SUGGESTION_THRESHOLDS = {
     "grinding": {"info": 10, "warning": 20},
     "talking": {"info": 5},
 }
+
+# ---- YAMNet 分类后端 ----
+# YAMNet 在 AudioSet（521 类）上预训练，CPU 即可推理。这里把我们的三类声音
+# 映射到 AudioSet 的类名关键词（不区分大小写、子串匹配）。运行时会读取模型自带
+# 的类名表，凡命中关键词的类都计入该类别，取其中最高概率作为该类别得分。
+#
+# 注意：AudioSet 没有干净的“磨牙/夜磨牙(bruxism)”类，grinding 用一组近似类
+# 兜底，召回会偏低——这是已知局限，后续可改用“YAMNet 测 snoring/talking +
+# 规则测 grinding”的混合方案。
+YAMNET_MODEL_HANDLE = "https://tfhub.dev/google/yamnet/1"
+
+YAMNET_CLASS_KEYWORDS = {
+    "snoring": ["snoring", "snort"],
+    "talking": [
+        "speech",
+        "conversation",
+        "narration",
+        "monologue",
+        "whispering",
+        "babbling",
+        "shout",
+        "child speech",
+    ],
+    "grinding": ["grinding", "chewing", "mastication", "biting", "gnashing"],
+}
+
+# 每类别的判定阈值（YAMNet 概率，0~1）。低于阈值的帧记为 unknown（不计事件）。
+YAMNET_THRESHOLDS = {
+    "snoring": 0.30,
+    "talking": 0.30,
+    "grinding": 0.30,
+}

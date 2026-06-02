@@ -20,6 +20,11 @@ pandas>=2.2
 # 可选：机器学习
 scikit-learn>=1.5
 
+# 可选：YAMNet 预训练分类后端（backend="yamnet"，CPU 即可推理）
+# 仅在需要时安装：pip install ".[yamnet]"
+# tensorflow>=2.20
+# tensorflow-hub>=0.16
+
 # 工具
 python-dotenv>=1.0.0
 

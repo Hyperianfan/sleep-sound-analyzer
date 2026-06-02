@@ -38,15 +38,15 @@ REPORTS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 mcp = FastMCP("sleep-sound-analyzer")
 
-# 延迟初始化：librosa 等依赖较重，首次调用工具时才加载，保证 server 秒级启动
-_analyzer = None
+# 延迟初始化：librosa/tensorflow 等依赖较重，首次调用工具时才加载，保证 server
+# 秒级启动。按后端分别缓存，避免重复载入模型。
+_analyzers = {}
 
 
-def _get_analyzer():
-    global _analyzer
-    if _analyzer is None:
-        _analyzer = SleepSoundAnalyzer()
-    return _analyzer
+def _get_analyzer(backend="rule"):
+    if backend not in _analyzers:
+        _analyzers[backend] = SleepSoundAnalyzer(backend=backend)
+    return _analyzers[backend]
 
 
 @contextlib.contextmanager
@@ -82,6 +82,7 @@ def analyze_sleep_audio(
     audio_path: str,
     apply_noise_reduction: bool = True,
     save_report: bool = True,
+    backend: str = "rule",
 ) -> dict:
     """
     分析一段睡眠录音，识别打呼/磨牙/梦话事件，并给出统计与健康建议。
@@ -90,10 +91,13 @@ def analyze_sleep_audio(
         audio_path: 音频文件路径（绝对或相对），支持 wav/mp3/m4a。
         apply_noise_reduction: 是否先做降噪，默认 True。
         save_report: 是否把结果保存为 JSON 报告到 output/reports，默认 True。
+        backend: 分类后端。"rule"=手工规则（默认，无额外依赖）；
+            "yamnet"=预训练 YAMNet 模型（需安装 tensorflow，准确率更高，
+            尤其能区分环境噪声与梦话）。
 
     Returns:
         dict: 包含以下字段
-            - metadata: 文件信息、分析时间、总时长、总帧数
+            - metadata: 文件信息、分析时间、总时长、总帧数、所用 backend
             - statistics: 各类声音的次数/时长/占比
             - events: 带时间戳的事件列表
             - suggestions: 健康建议列表
@@ -105,7 +109,7 @@ def analyze_sleep_audio(
         raise FileNotFoundError(f"音频文件不存在: {audio_path}")
 
     with _quiet_stdout():
-        analyzer = _get_analyzer()
+        analyzer = _get_analyzer(backend)
         result = analyzer.analyze_audio(
             str(path), apply_noise_reduction=apply_noise_reduction
         )

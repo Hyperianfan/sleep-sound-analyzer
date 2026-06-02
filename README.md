@@ -99,9 +99,31 @@ LLM 客户端（Claude Desktop、Claude Code、Plaud 助手等）都能直接调
 
 | 工具 | 说明 |
 | --- | --- |
-| `analyze_sleep_audio(audio_path, apply_noise_reduction=True, save_report=True)` | 分析录音，返回统计、事件、健康建议，以及一段可直接展示的 `summary` markdown |
+| `analyze_sleep_audio(audio_path, apply_noise_reduction=True, save_report=True, backend="rule")` | 分析录音，返回统计、事件、健康建议，以及一段可直接展示的 `summary` markdown |
 | `list_sleep_reports()` | 列出历史报告（按时间倒序） |
 | `get_sleep_report(filename)` | 读取指定历史报告 |
+
+### 分类后端（rule / yamnet）
+
+`analyze_sleep_audio` 的 `backend` 参数可选：
+
+- **`"rule"`（默认）**：手工规则分类器，无额外依赖，开箱即用。
+- **`"yamnet"`**：基于 Google 在 AudioSet 上预训练的 **YAMNet** 模型，准确率更高，
+  尤其能把电视/风扇等环境噪声与真正的梦话区分开（规则后端最容易在这里误判）。
+  CPU 即可推理，无需 GPU。
+
+启用 YAMNet 后端需安装额外依赖（约几百 MB）：
+
+```bash
+pip install ".[yamnet]"
+```
+
+> 说明：
+> - 首次调用 `backend="yamnet"` 时会从 TF Hub 下载 YAMNet 模型（约 17MB）并懒加载，
+>   之后缓存复用；不使用时完全不会拉起 tensorflow。
+> - YAMNet 对**打鼾(Snoring)、梦话(Speech)** 识别很强；但 AudioSet 没有干净的
+>   **磨牙(bruxism)** 类，grinding 目前用 `Chewing/Biting` 近似兜底，召回偏低，
+>   后续可改用「YAMNet 测打鼾/梦话 + 规则测磨牙」的混合方案。
 
 报告与 Web 应用共用 `output/reports/`，所以 agent 分析完，用户能在网页里直接查看。
 

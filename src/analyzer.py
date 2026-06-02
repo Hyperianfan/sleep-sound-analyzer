@@ -16,11 +16,23 @@ logger = logging.getLogger(__name__)
 class SleepSoundAnalyzer:
     """睡眠声音分析器"""
 
-    def __init__(self):
-        """初始化分析器"""
+    def __init__(self, backend="rule"):
+        """
+        初始化分析器
+
+        Args:
+            backend: 分类后端。
+                "rule"   —— 手工规则分类器（默认，无额外依赖）
+                "yamnet" —— 预训练 YAMNet（需 tensorflow，准确率更高）
+        """
+        if backend not in ("rule", "yamnet"):
+            raise ValueError(f"未知的分类后端: {backend}（应为 'rule' 或 'yamnet'）")
+        self.backend = backend
         self.preprocessor = AudioPreprocessor(target_sr=config.TARGET_SR)
         self.feature_extractor = FeatureExtractor(sr=config.TARGET_SR)
         self.classifier = SoundClassifier()
+        # YAMNet 后端懒加载，避免无谓地拉起 tensorflow
+        self._yamnet = None
 
     def analyze_audio(self, audio_path, apply_noise_reduction=True):
         """
@@ -40,15 +52,24 @@ class SleepSoundAnalyzer:
             apply_noise_reduction=apply_noise_reduction
         )
 
-        logger.info("[2/4] 提取特征 (%d 帧)", len(preprocessed['frames']))
-        # 2. 提取特征
-        features_list = self.feature_extractor.extract_features_batch(
-            preprocessed['frames']
-        )
+        n_frames = len(preprocessed['frames'])
 
-        logger.info("[3/4] 声音分类")
-        # 3. 分类识别
-        classifications = self.classifier.classify_batch(features_list)
+        # 2~3. 提取特征 + 分类识别（按后端分流）
+        if self.backend == "yamnet":
+            logger.info("[2/4] YAMNet 推理 (%d 帧)", n_frames)
+            logger.info("[3/4] 声音分类 (backend=yamnet)")
+            classifications = self._get_yamnet().classify_waveform(
+                preprocessed['audio'],
+                n_frames=n_frames,
+                hop_duration=config.HOP_DURATION,
+            )
+        else:
+            logger.info("[2/4] 提取特征 (%d 帧)", n_frames)
+            features_list = self.feature_extractor.extract_features_batch(
+                preprocessed['frames']
+            )
+            logger.info("[3/4] 声音分类 (backend=rule)")
+            classifications = self.classifier.classify_batch(features_list)
 
         logger.info("[4/4] 事件合并与统计")
         # 4. 生成事件列表（带时间戳）
@@ -81,12 +102,20 @@ class SleepSoundAnalyzer:
                 'file': str(audio_path),
                 'analyzed_at': datetime.now().isoformat(),
                 'total_duration': preprocessed['duration'],
-                'total_frames': len(preprocessed['frames'])
+                'total_frames': len(preprocessed['frames']),
+                'backend': self.backend
             },
             'statistics': stats,
             'events': merged_events,
             'suggestions': suggestions
         }
+
+    def _get_yamnet(self):
+        """懒加载 YAMNet 分类器（首次调用时才 import tensorflow 并载入模型）。"""
+        if self._yamnet is None:
+            from .yamnet_classifier import YAMNetClassifier
+            self._yamnet = YAMNetClassifier()
+        return self._yamnet
 
     def _merge_events(self, events, gap_threshold=config.EVENT_GAP_THRESHOLD):
         """

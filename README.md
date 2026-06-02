@@ -112,7 +112,7 @@ LLM 客户端（Claude Desktop、Claude Code、Plaud 助手等）都能直接调
 **方式 A：安装本包后用入口命令（推荐，配置最干净）**
 
 ```bash
-git clone https://github.com/haydenliu/sleep-sound-analyzer.git
+git clone https://github.com/haydenliu-crypto/sleep-sound-analyzer.git
 cd sleep-sound-analyzer
 python3 -m venv venv && source venv/bin/activate
 pip install .            # 会注册 `sleep-sound-analyzer` 命令

@@ -1,8 +1,8 @@
 """
 睡眠声音分析 MCP Server
 
-把 SleepSoundAnalyzer 的识别能力封装成 MCP 工具，供 Claude、Plaud 助手
-等任意 LLM agent 通过 MCP 协议调用。
+把 SleepSoundAnalyzer 的识别能力封装成 MCP 工具，供 Claude 等任意
+LLM agent 通过 MCP 协议调用。
 
 运行（stdio 传输，供本地客户端拉起）：
     python mcp_server.py

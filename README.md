@@ -93,7 +93,7 @@ chmod +x run.sh
 ## 作为 MCP Server 使用（供其它 agent 调用）
 
 除了 Web 界面，本项目还把识别能力封装成了 **MCP Server**，任何支持 MCP 的
-LLM 客户端（Claude Desktop、Claude Code、Plaud 助手等）都能直接调用，无需写代码。
+LLM 客户端（Claude Desktop、Claude Code 等）都能直接调用，无需写代码。
 
 ### 提供的工具
 
@@ -285,14 +285,14 @@ A: 可以考虑：
 - 调整分类阈值参数
 - 改善录音环境（减少噪音）
 
-### Q: 如何与 Plaud MCP 集成？
+### Q: 如何通过 HTTP API 分析指定文件？
 A: 在 API 请求中传入 `file_path` 参数即可：
 
 ```python
 import requests
 
 response = requests.post('http://localhost:5050/api/analyze', 
-    json={'file_path': '/path/to/plaud/recording.wav'})
+    json={'file_path': '/path/to/recording.wav'})
 ```
 
 ## 未来计划

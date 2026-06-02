@@ -36,8 +36,8 @@ web = ["flask>=3.0.0", "flask-cors>=4.0.0"]
 dev = ["pytest>=7.0"]
 
 [project.urls]
-Homepage = "https://github.com/haydenliu/sleep-sound-analyzer"
-Repository = "https://github.com/haydenliu/sleep-sound-analyzer"
+Homepage = "https://github.com/haydenliu-crypto/sleep-sound-analyzer"
+Repository = "https://github.com/haydenliu-crypto/sleep-sound-analyzer"
 
 # 安装后可直接用 `sleep-sound-analyzer` 命令启动 stdio MCP server
 [project.scripts]

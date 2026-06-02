@@ -124,6 +124,43 @@ class AudioPreprocessor:
 
         return frames.T  # 转置，返回 [n_frames, frame_length]
 
+    def frame_real_times(self, n_frames, intervals, sr,
+                         hop_duration=config.HOP_DURATION):
+        """
+        计算每一帧在**原始录音**中的真实起始时间（秒）。
+
+        去静音会把多个非静音区间拼接起来再分帧，因此帧在拼接音频里的位置
+        ≠ 原始录音里的位置。这里把每帧起始样本从“拼接坐标”映射回“原始坐标”，
+        让事件时间戳对应录音真实钟点（而不是拼接后的相对时间）。
+
+        Args:
+            n_frames: 帧数
+            intervals: librosa.effects.split 返回的非静音区间（原始样本下标）
+            sr: 采样率
+            hop_duration: 帧移（秒）
+
+        Returns:
+            list[float]: 长度 n_frames，每帧的真实起始时间（秒）
+        """
+        hop_length = int(sr * hop_duration)
+
+        # 没有去静音信息时，退化为线性时间
+        if intervals is None or len(intervals) == 0:
+            return [round(i * hop_length / sr, 3) for i in range(n_frames)]
+
+        starts = [int(s) for s, _ in intervals]          # 每个区间在原始音频的起点
+        lengths = [int(e) - int(s) for s, e in intervals]  # 每个区间长度（样本）
+        cum = np.cumsum([0] + lengths)                    # 拼接坐标下各区间的起点
+
+        times = []
+        for i in range(n_frames):
+            t = i * hop_length                            # 帧起点在“拼接音频”中的样本下标
+            k = int(np.searchsorted(cum, t, side='right')) - 1
+            k = min(max(k, 0), len(starts) - 1)
+            orig_sample = starts[k] + (t - cum[k])        # 映射回原始音频样本下标
+            times.append(round(orig_sample / sr, 3))
+        return times
+
     def preprocess(self, audio_path, apply_noise_reduction=True):
         """
         完整预处理流程
@@ -151,10 +188,14 @@ class AudioPreprocessor:
         # 分帧
         frames = self.create_frames(audio_trimmed, sr)
 
+        # 每帧映射回原始录音的真实时间（供事件时间戳使用）
+        frame_times = self.frame_real_times(len(frames), intervals, sr)
+
         return {
             'audio': audio_trimmed,
             'sr': sr,
             'frames': frames,
+            'frame_times': frame_times,
             'intervals': intervals,
             'duration': len(audio) / sr  # 原始总时长
         }

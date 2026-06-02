@@ -16,17 +16,24 @@ logger = logging.getLogger(__name__)
 class SleepSoundAnalyzer:
     """睡眠声音分析器"""
 
-    def __init__(self, backend="rule"):
+    VALID_BACKENDS = ("rule", "yamnet", "hybrid")
+
+    def __init__(self, backend="hybrid"):
         """
         初始化分析器
 
         Args:
             backend: 分类后端。
-                "rule"   —— 手工规则分类器（默认，无额外依赖）
-                "yamnet" —— 预训练 YAMNet（需 tensorflow，准确率更高）
+                "hybrid" —— 默认。YAMNet 测打鼾/梦话 + 规则测磨牙，兼顾两者所长。
+                "yamnet" —— 纯预训练 YAMNet（磨牙基本测不到）。
+                "rule"   —— 纯手工规则，无额外依赖。
+            注：yamnet/hybrid 需安装 tensorflow（pip install ".[yamnet]"）；
+            若依赖缺失，会自动回退到 "rule" 并告警。
         """
-        if backend not in ("rule", "yamnet"):
-            raise ValueError(f"未知的分类后端: {backend}（应为 'rule' 或 'yamnet'）")
+        if backend not in self.VALID_BACKENDS:
+            raise ValueError(
+                f"未知的分类后端: {backend}（应为 {self.VALID_BACKENDS} 之一）"
+            )
         self.backend = backend
         self.preprocessor = AudioPreprocessor(target_sr=config.TARGET_SR)
         self.feature_extractor = FeatureExtractor(sr=config.TARGET_SR)
@@ -54,32 +61,55 @@ class SleepSoundAnalyzer:
 
         n_frames = len(preprocessed['frames'])
 
+        # 后端可用性：yamnet/hybrid 需要 tensorflow，缺失则回退到规则
+        backend = self.backend
+        yamnet = None
+        if backend in ("yamnet", "hybrid"):
+            yamnet = self._get_yamnet()
+            if yamnet is None:
+                backend = "rule"
+
         # 2~3. 提取特征 + 分类识别（按后端分流）
-        if self.backend == "yamnet":
-            logger.info("[2/4] YAMNet 推理 (%d 帧)", n_frames)
-            logger.info("[3/4] 声音分类 (backend=yamnet)")
-            classifications = self._get_yamnet().classify_waveform(
+        logger.info("[2/4] 特征/推理 (%d 帧, backend=%s)", n_frames, backend)
+        logger.info("[3/4] 声音分类 (backend=%s)", backend)
+        if backend == "rule":
+            features_list = self.feature_extractor.extract_features_batch(
+                preprocessed['frames']
+            )
+            classifications = self.classifier.classify_batch(features_list)
+        elif backend == "yamnet":
+            classifications = yamnet.classify_waveform(
                 preprocessed['audio'],
                 n_frames=n_frames,
                 hop_duration=config.HOP_DURATION,
             )
-        else:
-            logger.info("[2/4] 提取特征 (%d 帧)", n_frames)
+        else:  # hybrid: YAMNet 测打鼾/梦话，规则补测磨牙
+            classifications = yamnet.classify_waveform(
+                preprocessed['audio'],
+                n_frames=n_frames,
+                hop_duration=config.HOP_DURATION,
+            )
             features_list = self.feature_extractor.extract_features_batch(
                 preprocessed['frames']
             )
-            logger.info("[3/4] 声音分类 (backend=rule)")
-            classifications = self.classifier.classify_batch(features_list)
+            # 仅在 YAMNet 判为 unknown 的帧上用规则补磨牙，避免抢占高置信的打鼾/梦话
+            for i, (sound_type, _conf) in enumerate(classifications):
+                if sound_type == 'unknown':
+                    g_type, g_conf = self.classifier.classify_grinding(
+                        features_list[i]
+                    )
+                    if g_type == 'grinding':
+                        classifications[i] = (g_type, g_conf)
 
         logger.info("[4/4] 事件合并与统计")
-        # 4. 生成事件列表（带时间戳）
-        # 时间戳与初始时长都按帧步长计算，与预处理分帧保持一致（见 config.HOP_DURATION）
+        # 4. 生成事件列表（时间戳映射回原始录音真实时间，见 preprocessor.frame_real_times）
+        frame_times = preprocessed['frame_times']
         events = []
         for i, (sound_type, confidence) in enumerate(classifications):
             if sound_type != 'unknown':
                 event = {
                     'type': sound_type,
-                    'timestamp': i * config.HOP_DURATION,
+                    'timestamp': frame_times[i],
                     'confidence': round(confidence, 3),
                     'duration': config.HOP_DURATION
                 }
@@ -103,7 +133,7 @@ class SleepSoundAnalyzer:
                 'analyzed_at': datetime.now().isoformat(),
                 'total_duration': preprocessed['duration'],
                 'total_frames': len(preprocessed['frames']),
-                'backend': self.backend
+                'backend': backend  # 实际生效的后端（依赖缺失回退时与 self.backend 不同）
             },
             'statistics': stats,
             'events': merged_events,
@@ -111,8 +141,22 @@ class SleepSoundAnalyzer:
         }
 
     def _get_yamnet(self):
-        """懒加载 YAMNet 分类器（首次调用时才 import tensorflow 并载入模型）。"""
+        """
+        懒加载 YAMNet 分类器（首次调用时才 import tensorflow 并载入模型）。
+        若 tensorflow / tensorflow-hub 未安装，返回 None（调用方据此回退到规则）。
+        """
         if self._yamnet is None:
+            import importlib.util
+            missing = [
+                m for m in ("tensorflow", "tensorflow_hub")
+                if importlib.util.find_spec(m) is None
+            ]
+            if missing:
+                logger.warning(
+                    "YAMNet 依赖缺失 %s，回退到规则后端。安装：pip install \".[yamnet]\"",
+                    missing,
+                )
+                return None
             from .yamnet_classifier import YAMNetClassifier
             self._yamnet = YAMNetClassifier()
         return self._yamnet

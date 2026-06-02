@@ -9,8 +9,9 @@ from src.analyzer import SleepSoundAnalyzer
 
 @pytest.fixture(scope="session")
 def analyzer():
-    """整套测试共用一个分析器实例。"""
-    return SleepSoundAnalyzer()
+    """整套测试共用一个分析器实例。固定用规则后端：单测验证的是规则管线与
+    事件合并/统计逻辑，不应依赖 YAMNet 模型下载。"""
+    return SleepSoundAnalyzer(backend="rule")
 
 
 @pytest.fixture

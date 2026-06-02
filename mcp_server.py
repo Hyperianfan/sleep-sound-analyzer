@@ -43,7 +43,7 @@ mcp = FastMCP("sleep-sound-analyzer")
 _analyzers = {}
 
 
-def _get_analyzer(backend="rule"):
+def _get_analyzer(backend="hybrid"):
     if backend not in _analyzers:
         _analyzers[backend] = SleepSoundAnalyzer(backend=backend)
     return _analyzers[backend]
@@ -82,7 +82,7 @@ def analyze_sleep_audio(
     audio_path: str,
     apply_noise_reduction: bool = True,
     save_report: bool = True,
-    backend: str = "rule",
+    backend: str = "hybrid",
 ) -> dict:
     """
     分析一段睡眠录音，识别打呼/磨牙/梦话事件，并给出统计与健康建议。
@@ -91,9 +91,12 @@ def analyze_sleep_audio(
         audio_path: 音频文件路径（绝对或相对），支持 wav/mp3/m4a。
         apply_noise_reduction: 是否先做降噪，默认 True。
         save_report: 是否把结果保存为 JSON 报告到 output/reports，默认 True。
-        backend: 分类后端。"rule"=手工规则（默认，无额外依赖）；
-            "yamnet"=预训练 YAMNet 模型（需安装 tensorflow，准确率更高，
-            尤其能区分环境噪声与梦话）。
+        backend: 分类后端，默认 "hybrid"。
+            "hybrid"=YAMNet 测打鼾/梦话 + 规则测磨牙（推荐，准确率最高）；
+            "yamnet"=纯 YAMNet（磨牙基本测不到）；
+            "rule"=纯手工规则（无额外依赖）。
+            yamnet/hybrid 需安装 tensorflow（pip install ".[yamnet]"）；
+            依赖缺失时自动回退到 rule，实际生效的后端见返回的 metadata.backend。
 
     Returns:
         dict: 包含以下字段

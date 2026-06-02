@@ -249,6 +249,7 @@ def analyze_sleep_trend(
     filenames: list[str] | None = None,
     date_from: str = "",
     date_to: str = "",
+    only_dated: bool = True,
 ) -> dict:
     """
     对**已保存的历史报告**做多晚趋势分析，无需重新跑音频。
@@ -257,6 +258,8 @@ def analyze_sleep_trend(
         filenames: 指定要对比的报告文件名列表（report_*.json）。为空则扫描全部报告。
         date_from: 起始日期（YYYY-MM-DD，含）。仅在未指定 filenames 时按录音日期过滤。
         date_to: 结束日期（YYYY-MM-DD，含）。
+        only_dated: 仅在未指定 filenames 时生效。默认 True，只纳入带 recording_started_at
+            字段的"正式报告"，从而自动跳过早期/无录音日期的旧报告，避免污染趋势。
 
     Returns:
         dict: nights、trend（含变好/变差结论）、summary（中文 markdown）。
@@ -272,7 +275,10 @@ def analyze_sleep_trend(
     else:
         for fp in REPORTS_FOLDER.glob("*.json"):
             with open(fp, "r", encoding="utf-8") as f:
-                results.append(json.load(f))
+                data = json.load(f)
+            if only_dated and not data.get("metadata", {}).get("recording_started_at"):
+                continue
+            results.append(data)
 
     out = SleepSoundAnalyzer.trend_from_results(results)
 

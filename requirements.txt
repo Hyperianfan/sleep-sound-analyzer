@@ -1,0 +1,27 @@
+# 音频处理
+librosa>=0.10.1
+# Python 3.13 需要较新的 numpy/scipy（否则容易触发源码编译失败）
+numpy>=2.1
+scipy>=1.15
+pydub>=0.25.1
+soundfile>=0.12.1
+noisereduce>=3.0.0
+
+# Web 框架
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# MCP Server（把识别能力封装成 agent 可调用的工具）
+mcp>=1.2.0
+
+# 数据处理
+pandas>=2.2
+
+# 可选：机器学习
+scikit-learn>=1.5
+
+# 工具
+python-dotenv>=1.0.0
+
+# 测试
+pytest>=7.0

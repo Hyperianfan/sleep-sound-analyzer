@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sleep-sound-analyzer"
+version = "1.0.0"
+description = "把睡眠录音的打呼/磨牙/梦话识别能力封装成 MCP 工具，供 Claude 等 agent 调用"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Hayden Liu", email = "hayden.liu@plaud.ai" }]
+keywords = ["mcp", "model-context-protocol", "sleep", "audio", "snoring", "claude"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+# 核心运行依赖（与 requirements.txt 保持一致，去掉了 web/测试相关）
+dependencies = [
+    "librosa>=0.10.1",
+    "numpy>=2.1",
+    "scipy>=1.15",
+    "pydub>=0.25.1",
+    "soundfile>=0.12.1",
+    "noisereduce>=3.0.0",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "python-dotenv>=1.0.0",
+    "mcp>=1.2.0",
+]
+
+[project.optional-dependencies]
+web = ["flask>=3.0.0", "flask-cors>=4.0.0"]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/haydenliu/sleep-sound-analyzer"
+Repository = "https://github.com/haydenliu/sleep-sound-analyzer"
+
+# 安装后可直接用 `sleep-sound-analyzer` 命令启动 stdio MCP server
+[project.scripts]
+sleep-sound-analyzer = "mcp_server:main"
+
+[tool.setuptools]
+# 顶层模块 mcp_server.py + src 包一起打包
+py-modules = ["mcp_server"]
+
+[tool.setuptools.packages.find]
+include = ["src*"]

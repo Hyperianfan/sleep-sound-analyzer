@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# 虚拟环境（557M，不入库）
+venv/
+.venv/
+env/
+
+# 测试 / 缓存
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 录音 & 数据（体积大、含个人隐私，不入库）
+data/raw/
+data/processed/
+*.wav
+*.mp3
+*.m4a
+*.flac
+
+# 训练好的模型权重
+models/*.pkl
+models/*.joblib
+models/*.h5
+
+# 运行产物：分析报告（个人数据）
+output/reports/*.json
+
+# 环境变量 / 密钥
+.env
+.env.*
+
+# 系统 / 编辑器
+.DS_Store
+.idea/
+.vscode/

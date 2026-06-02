@@ -1,0 +1,22 @@
+{
+  "_comment": "示例 MCP 客户端配置。二选一：A) 已 pip 安装本包，直接用入口命令；B) 仅 clone 仓库、用项目内 venv 的 python 运行。把 /ABSOLUTE/PATH/TO 换成你 clone 下来的真实绝对路径。",
+
+  "_optionA_installed": {
+    "mcpServers": {
+      "sleep-sound-analyzer": {
+        "command": "sleep-sound-analyzer"
+      }
+    }
+  },
+
+  "_optionB_from_clone": {
+    "mcpServers": {
+      "sleep-sound-analyzer": {
+        "command": "/ABSOLUTE/PATH/TO/sleep-sound-analyzer/venv/bin/python",
+        "args": [
+          "/ABSOLUTE/PATH/TO/sleep-sound-analyzer/mcp_server.py"
+        ]
+      }
+    }
+  }
+}

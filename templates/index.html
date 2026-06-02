@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>睡眠声音分析器 - Sleep Sound Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌙 睡眠声音分析器</h1>
+            <p class="subtitle">Sleep Sound Analyzer - 打呼/磨牙/梦话智能检测</p>
+        </header>
+
+        <main>
+            <!-- 文件选择/分析区域 -->
+            <section class="upload-section">
+                <h2>📁 选择录音文件</h2>
+                <div class="upload-area">
+                    <input type="file" id="fileInput" accept=".wav,.mp3,.m4a" style="display: none;">
+                    <div id="dropZone" class="drop-zone">
+                        <div class="drop-zone-content">
+                            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <p>点击或拖拽文件到此处</p>
+                            <small>支持 WAV, MP3, M4A 格式</small>
+                        </div>
+                    </div>
+                    <div id="selectedFile" class="selected-file" style="display: none;">
+                        <span id="fileName"></span>
+                        <button id="clearFile" class="btn-clear">✕</button>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button id="analyzeBtn" class="btn btn-primary" disabled>
+                        <span class="btn-text">开始分析</span>
+                        <span class="btn-loading" style="display: none;">
+                            <span class="spinner"></span> 分析中...
+                        </span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 分析结果区域 -->
+            <section id="resultSection" class="result-section" style="display: none;">
+                <h2>📊 分析结果</h2>
+
+                <!-- 概览卡片 -->
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-icon">🔊</div>
+                        <div class="card-content">
+                            <h3>打呼</h3>
+                            <div class="stat-value" id="snoreCount">-</div>
+                            <div class="stat-label">检测次数</div>
+                            <div class="stat-detail">
+                                <span id="snoreTime">-</span> 分钟
+                                (<span id="snorePercent">-</span>%)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-icon">😬</div>
+                        <div class="card-content">
+                            <h3>磨牙</h3>
+                            <div class="stat-value" id="grindCount">-</div>
+                            <div class="stat-label">检测次数</div>
+                            <div class="stat-detail">
+                                <span id="grindTime">-</span> 分钟
+                                (<span id="grindPercent">-</span>%)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-icon">💬</div>
+                        <div class="card-content">
+                            <h3>梦话</h3>
+                            <div class="stat-value" id="talkCount">-</div>
+                            <div class="stat-label">检测次数</div>
+                            <div class="stat-detail">
+                                <span id="talkTime">-</span> 分钟
+                                (<span id="talkPercent">-</span>%)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-icon">⏱️</div>
+                        <div class="card-content">
+                            <h3>总时长</h3>
+                            <div class="stat-value" id="totalHours">-</div>
+                            <div class="stat-label">小时</div>
+                            <div class="stat-detail" id="totalMinutes">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 健康建议 -->
+                <div id="suggestions" class="suggestions"></div>
+
+                <!-- 事件详情 -->
+                <div class="events-detail">
+                    <h3>📝 事件详情</h3>
+                    <div id="eventsList" class="events-list"></div>
+                </div>
+            </section>
+
+            <!-- 历史报告 -->
+            <section class="history-section">
+                <h2>📚 历史报告</h2>
+                <div id="historyList" class="history-list">
+                    <p class="empty-state">暂无历史报告</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Sleep Sound Analyzer v1.0 | Powered by Plaud × AI</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
